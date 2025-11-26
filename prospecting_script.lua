@@ -1,4 +1,4 @@
--- v1.8.0 coastalhub (2025-11-26) ping toggle, no truncation, removed Basic Info button
+-- v1.9.0 coastalhub (2025-11-26) intelligent scroll/copy all, summary line hidden, image1 reference
 
 local player = game:GetService("Players").LocalPlayer
 local gui = Instance.new("ScreenGui")
@@ -233,6 +233,22 @@ outputBox.TextEditable = false
 outputBox.ReadOnly = true
 outputBox.Parent = outputFrame
 
+local lines_total_label = Instance.new("TextLabel")
+lines_total_label.Size = UDim2.new(1, -math.floor(24*scale), 0, math.floor(18*scale))
+lines_total_label.Position = UDim2.new(0, math.floor(12*scale), 1, -math.floor(34*scale))
+lines_total_label.BackgroundTransparency = 1
+lines_total_label.Font = Enum.Font.Code
+lines_total_label.TextSize = math.floor(14*scale)
+lines_total_label.TextColor3 = Color3.fromRGB(210,210,210)
+lines_total_label.Text = ""
+lines_total_label.Visible = false
+lines_total_label.Parent = outputFrame
+
+outputBox.ClearTextOnFocus = false
+outputBox.MultiLine = true
+outputBox.TextEditable = false
+outputBox.ReadOnly = true
+
 local copyBtn = Instance.new("TextButton")
 copyBtn.Text = "📋 Copy"
 copyBtn.Size = UDim2.new(0, math.floor(86*scale), 0, math.floor(32*scale))
@@ -259,6 +275,7 @@ feedbackLbl.ZIndex = 100
 feedbackLbl.Visible = false
 feedbackLbl.Parent = outputFrame
 
+local currentOutputText = ""
 local function buttonFeedback(msg)
     feedbackLbl.Text = msg or "Done!"
     feedbackLbl.Visible = true
@@ -274,8 +291,22 @@ local function buttonFeedback(msg)
 end
 
 local function setOutput(text)
-    outputBox.Text = text or ""
+    currentOutputText = text or ""
+    local lines = {}
+    for line in string.gmatch(currentOutputText, "[^\r\n]+") do
+        table.insert(lines, line)
+    end
+    outputBox.Text = currentOutputText
     outputBox.CursorPosition = 1
+
+    -- Show summary line only if there are more than 20 lines, and only when not fully expanded
+    if #lines > 20 then
+        lines_total_label.Text = "("..#lines.." lines total)"
+        lines_total_label.Visible = true
+    else
+        lines_total_label.Text = ""
+        lines_total_label.Visible = false
+    end
 end
 
 local usableEventsList = ""
@@ -355,10 +386,16 @@ diagButtons[6].MouseButton1Click:Connect(function()
 end)
 
 copyBtn.MouseButton1Click:Connect(function()
+    local textToCopy = currentOutputText
+    -- Remove summary line from copy
+    textToCopy = string.gsub(textToCopy, "\n?%(%d+ lines total.-%)$", "")
     if setclipboard then
-        setclipboard(outputBox.Text or "")
+        setclipboard(textToCopy)
         buttonFeedback("Copied!")
     end
+    -- On copy, show ALL lines and remove the lines summary label
+    outputBox.Text = textToCopy
+    lines_total_label.Visible = false
 end)
 
 setOutput("")
