@@ -1,3 +1,4 @@
+-- v1.0.0 coastalhub (2025-11-26)
 local player = game:GetService("Players").LocalPlayer
 local gui = Instance.new("ScreenGui")
 gui.Name = "CoastalHubGui"
@@ -33,7 +34,7 @@ closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeBtn.Parent = frame
 
 closeBtn.MouseButton1Click:Connect(function()
-	gui.Enabled = false
+    gui:Destroy()
 end)
 
 local ejectBtn = Instance.new("TextButton")
@@ -47,7 +48,11 @@ ejectBtn.TextColor3 = Color3.fromRGB(51, 47, 54)
 ejectBtn.Parent = frame
 
 ejectBtn.MouseButton1Click:Connect(function()
-	gui:Destroy()
+    gui:Destroy()
+    local scriptRef = script
+    if scriptRef and scriptRef.Parent then
+        scriptRef:Destroy()
+    end
 end)
 
 local diagBtn = Instance.new("TextButton")
@@ -90,39 +95,38 @@ copyBtn.Parent = frame
 local usableEventsList = ""
 
 local function getUsableEvents()
-	local result = {}
-	local function scan(obj, path)
-		for _, child in ipairs(obj:GetChildren()) do
-			local cpath = path .. "/" .. child.Name
-			for _, v in pairs(child:GetChildren()) do
-				scan(child, cpath)
-			end
-			for _, prop in pairs({"Touched", "Changed", "ChildAdded", "ChildRemoved", "DescendantAdded", "DescendantRemoving"}) do
-				if child[prop] and typeof(child[prop]) == "RBXScriptSignal" then
-					table.insert(result, cpath .. ":" .. prop)
-				end
-			end
-		end
-	end
-	scan(game, "")
-	return result
+    local result = {}
+    local function scan(obj, path)
+        for _, child in ipairs(obj:GetChildren()) do
+            local cpath = (path ~= "" and path .. "/" or "") .. child.Name
+            for _, prop in ipairs({"Touched", "Changed", "ChildAdded", "ChildRemoved", "DescendantAdded", "DescendantRemoving"}) do
+                local s = child[prop]
+                if typeof(s) == "RBXScriptSignal" then
+                    table.insert(result, cpath .. ":" .. prop)
+                end
+            end
+            scan(child, cpath)
+        end
+    end
+    scan(game, "")
+    return result
 end
 
 diagBtn.MouseButton1Click:Connect(function()
-	local events = getUsableEvents()
-	table.sort(events)
-	local allEvents = table.concat(events, "\n")
-	usableEventsList = allEvents
-	outputBox.Text = allEvents ~= "" and allEvents or "No usable events were found."
-	if #allEvents > 1500 then
-		outputBox.Size = UDim2.new(1, -24, 0, 220)
-	else
-		outputBox.Size = UDim2.new(1, -24, 0, 156)
-	end
+    local events = getUsableEvents()
+    table.sort(events)
+    local allEvents = table.concat(events, "\n")
+    usableEventsList = allEvents
+    outputBox.Text = allEvents ~= "" and allEvents or "No usable events were found."
+    if #allEvents > 1500 then
+        outputBox.Size = UDim2.new(1, -24, 0, 220)
+    else
+        outputBox.Size = UDim2.new(1, -24, 0, 156)
+    end
 end)
 
 copyBtn.MouseButton1Click:Connect(function()
-	if setclipboard then
-		setclipboard(usableEventsList)
-	end
+    if setclipboard then
+        setclipboard(usableEventsList)
+    end
 end)
