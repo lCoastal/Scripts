@@ -1,4 +1,5 @@
--- v1.7.0 coastalhub (2025-11-26) button feedback green "Done!" text
+-- v1.8.0 coastalhub (2025-11-26) ping toggle, no truncation, removed Basic Info button
+
 local player = game:GetService("Players").LocalPlayer
 local gui = Instance.new("ScreenGui")
 gui.Name = "CoastalHubGui"
@@ -122,36 +123,67 @@ restoreBtn.BorderSizePixel = 0
 restoreBtn.Visible = false
 restoreBtn.Parent = gui
 
-closeBtn.MouseButton1Click:Connect(function()
-    frame.Visible = false
-    restoreBtn.Visible = true
-end)
-restoreBtn.MouseButton1Click:Connect(function()
-    frame.Visible = true
-    restoreBtn.Visible = false
-end)
-ejectBtn.MouseButton1Click:Connect(function()
-    gui:Destroy()
-    local scriptRef = script
-    if scriptRef and scriptRef.Parent then
-        scriptRef:Destroy()
+-- Ping Toggle Area
+local pingArea = Instance.new("Frame")
+pingArea.Size = UDim2.new(1, 0, 0, math.floor(30 * scale))
+pingArea.Position = UDim2.new(0, 0, 0, math.floor(48 * scale))
+pingArea.BackgroundTransparency = 1
+pingArea.Parent = inner
+
+local pingToggle = Instance.new("TextButton")
+pingToggle.Size = UDim2.new(0, math.floor(80 * scale), 1, 0)
+pingToggle.Position = UDim2.new(0, math.floor(10 * scale), 0, 0)
+pingToggle.BackgroundColor3 = Color3.fromRGB(0,0,0)
+pingToggle.BackgroundTransparency = 0.1
+pingToggle.Text = "Ping: OFF"
+pingToggle.Font = Enum.Font.GothamBold
+pingToggle.TextSize = math.floor(18 * scale)
+pingToggle.TextColor3 = Color3.fromRGB(255,255,255)
+pingToggle.BorderSizePixel = 0
+pingToggle.Parent = pingArea
+
+local pingValueLbl = Instance.new("TextLabel")
+pingValueLbl.Size = UDim2.new(0, math.floor(120 * scale), 1, 0)
+pingValueLbl.Position = UDim2.new(0, math.floor(100 * scale), 0, 0)
+pingValueLbl.BackgroundTransparency = 1
+pingValueLbl.Font = Enum.Font.GothamBold
+pingValueLbl.TextSize = math.floor(18 * scale)
+pingValueLbl.TextColor3 = Color3.fromRGB(80,255,80)
+pingValueLbl.Text = ""
+pingValueLbl.Parent = pingArea
+
+local showPing = false
+local pingConnection
+local function updatePing()
+    if showPing then
+        local stats = game:GetService("Stats"):FindFirstChild("Network")
+        local pingVal = "?"
+        if stats and stats:FindFirstChild("ServerStatsItem") and stats.ServerStatsItem:FindFirstChild("Data Ping") then
+            pingVal = math.floor(stats.ServerStatsItem["Data Ping"]:GetValue())
+        end
+        pingValueLbl.Text = "✔ Ping: "..tostring(pingVal).."ms"
+    else
+        pingValueLbl.Text = ""
     end
-end)
-ejectRedBtn.MouseButton1Click:Connect(function()
-    gui:Destroy()
-    local scriptRef = script
-    if scriptRef and scriptRef.Parent then
-        scriptRef:Destroy()
+end
+pingToggle.MouseButton1Click:Connect(function()
+    showPing = not showPing
+    pingToggle.Text = showPing and "Ping: ON" or "Ping: OFF"
+    updatePing()
+    if showPing and not pingConnection then
+        pingConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            updatePing()
+        end)
+    elseif not showPing and pingConnection then
+        pingConnection:Disconnect()
+        pingConnection = nil
     end
 end)
 
-local btnYStart = math.floor(46 * scale)
 local btnYOffset = math.floor(44 * scale)
 local btnWidth = 0.8
-
 local diagTexts = {
     "List Usable Events",
-    "Basic Info",
     "Backpack Items",
     "Workspace Children",
     "Camera Info",
@@ -163,7 +195,7 @@ for i=1,#diagTexts do
     local btn = Instance.new("TextButton")
     btn.Text = diagTexts[i]
     btn.Size = UDim2.new(btnWidth, 0, 0, math.floor(36 * scale))
-    btn.Position = UDim2.new((1-btnWidth)/2, 0, 0, btnYStart + btnYOffset*(i-1))
+    btn.Position = UDim2.new((1-btnWidth)/2, 0, 0, math.floor(80*scale) + btnYOffset*(i-1))
     btn.BackgroundColor3 = Color3.fromRGB(0,0,0)
     btn.BackgroundTransparency = 0.1
     btn.Font = Enum.Font.Gotham
@@ -175,7 +207,7 @@ for i=1,#diagTexts do
     diagButtons[i] = btn
 end
 
-local outputAreaY = btnYStart + btnYOffset*#diagButtons
+local outputAreaY = math.floor(80*scale) + btnYOffset*#diagButtons
 local bottomAreaHeight = math.floor(112*scale)
 local outputFrame = Instance.new("Frame")
 outputFrame.Size = UDim2.new(1, 0, 0, bottomAreaHeight)
@@ -185,16 +217,21 @@ outputFrame.BackgroundTransparency = 0.15
 outputFrame.BorderSizePixel = 0
 outputFrame.Parent = inner
 
-local scrollingFrame = Instance.new("ScrollingFrame")
-scrollingFrame.Size = UDim2.new(1, -math.floor(24*scale), 1, -math.floor(44*scale))
-scrollingFrame.Position = UDim2.new(0, math.floor(12*scale), 0, math.floor(10*scale))
-scrollingFrame.BackgroundTransparency = 0.1
-scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-scrollingFrame.ScrollBarThickness = math.floor(12*scale)
-scrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(255,255,255)
-scrollingFrame.BorderSizePixel = 0
-scrollingFrame.ScrollBarImageTransparency = 0
-scrollingFrame.Parent = outputFrame
+local outputBox = Instance.new("TextBox")
+outputBox.Size = UDim2.new(1, -math.floor(24*scale), 1, -math.floor(44*scale))
+outputBox.Position = UDim2.new(0, math.floor(12*scale), 0, math.floor(10*scale))
+outputBox.BackgroundTransparency = 0.1
+outputBox.TextSize = math.floor(14*scale)
+outputBox.TextColor3 = Color3.fromRGB(255,255,255)
+outputBox.Font = Enum.Font.Code
+outputBox.TextWrapped = false
+outputBox.TextXAlignment = Enum.TextXAlignment.Left
+outputBox.TextYAlignment = Enum.TextYAlignment.Top
+outputBox.ClearTextOnFocus = false
+outputBox.MultiLine = true
+outputBox.TextEditable = false
+outputBox.ReadOnly = true
+outputBox.Parent = outputFrame
 
 local copyBtn = Instance.new("TextButton")
 copyBtn.Text = "📋 Copy"
@@ -208,7 +245,6 @@ copyBtn.TextSize = math.floor(16*scale)
 copyBtn.BorderSizePixel = 0
 copyBtn.Parent = outputFrame
 
--- Feedback "Done!" text
 local feedbackLbl = Instance.new("TextLabel")
 feedbackLbl.Text = ""
 feedbackLbl.Size = UDim2.new(0, math.floor(160*scale),0, math.floor(32*scale))
@@ -219,7 +255,7 @@ feedbackLbl.Font = Enum.Font.GothamBlack
 feedbackLbl.TextSize = math.floor(22*scale)
 feedbackLbl.TextStrokeTransparency = 0.7
 feedbackLbl.TextXAlignment = Enum.TextXAlignment.Center
-feedbackLbl.ZIndex = 100 -- Always top!
+feedbackLbl.ZIndex = 100
 feedbackLbl.Visible = false
 feedbackLbl.Parent = outputFrame
 
@@ -238,45 +274,8 @@ local function buttonFeedback(msg)
 end
 
 local function setOutput(text)
-    local lines = {}
-    for line in string.gmatch(text, "[^\r\n]+") do
-        table.insert(lines, line)
-    end
-    for _, child in pairs(scrollingFrame:GetChildren()) do
-        if child:IsA("TextLabel") then child:Destroy() end
-    end
-    if #lines == 0 or text == "" then
-        scrollingFrame.CanvasSize = UDim2.new(0,0,0,0)
-    else
-        local visibleLines = #lines > 10 and 10 or #lines
-        for i=1,visibleLines do
-            local lbl = Instance.new("TextLabel")
-            lbl.Size = UDim2.new(1,0,0,math.floor(18*scale))
-            lbl.Position = UDim2.new(0,0,0,math.floor(18*scale*(i-1)))
-            lbl.BackgroundTransparency = 1
-            lbl.TextColor3 = Color3.fromRGB(255,255,255)
-            lbl.Font = Enum.Font.Code
-            lbl.Text = lines[i]
-            lbl.TextSize = math.floor(14*scale)
-            lbl.TextXAlignment = Enum.TextXAlignment.Left
-            lbl.Parent = scrollingFrame
-        end
-        if #lines > 10 then
-            local moreLbl = Instance.new("TextLabel")
-            moreLbl.Size = UDim2.new(1, 0, 0, math.floor(18*scale))
-            moreLbl.Position = UDim2.new(0, 0, 0, math.floor(18*scale*11))
-            moreLbl.BackgroundTransparency = 1
-            moreLbl.TextColor3 = Color3.fromRGB(255,255,255)
-            moreLbl.Font = Enum.Font.Code
-            moreLbl.TextSize = math.floor(14*scale)
-            moreLbl.TextXAlignment = Enum.TextXAlignment.Left
-            moreLbl.Text = "("..#lines.." lines total, +"..(#lines-10).." hidden)"
-            moreLbl.Parent = scrollingFrame
-            scrollingFrame.CanvasSize = UDim2.new(0,0,0,math.floor(18*scale*12))
-        else
-            scrollingFrame.CanvasSize = UDim2.new(0,0,0,math.floor(18*scale*visibleLines))
-        end
-    end
+    outputBox.Text = text or ""
+    outputBox.CursorPosition = 1
 end
 
 local usableEventsList = ""
@@ -307,15 +306,6 @@ diagButtons[1].MouseButton1Click:Connect(function()
     buttonFeedback("Done!")
 end)
 diagButtons[2].MouseButton1Click:Connect(function()
-    local info = "Player: "..player.Name.."\nUserId: "..player.UserId.."\nPing: "
-    local stats = game:GetService("Stats"):FindFirstChild("Network") 
-    if stats then
-        info = info.." "..math.floor(stats.ServerStatsItem["Data Ping"]:GetValue()).."ms"
-    end
-    setOutput(info)
-    buttonFeedback("Done!")
-end)
-diagButtons[3].MouseButton1Click:Connect(function()
     local items = {}
     for _,v in ipairs(player.Backpack:GetChildren()) do
         table.insert(items, v.Name)
@@ -323,7 +313,7 @@ diagButtons[3].MouseButton1Click:Connect(function()
     setOutput("Backpack Items:\n"..table.concat(items,"\n"))
     buttonFeedback("Done!")
 end)
-diagButtons[4].MouseButton1Click:Connect(function()
+diagButtons[3].MouseButton1Click:Connect(function()
     local children = {}
     for _,v in ipairs(game.Workspace:GetChildren()) do
         table.insert(children, v.Name.." ["..v.ClassName.."]")
@@ -331,7 +321,7 @@ diagButtons[4].MouseButton1Click:Connect(function()
     setOutput("Workspace Children:\n"..table.concat(children,"\n"))
     buttonFeedback("Done!")
 end)
-diagButtons[5].MouseButton1Click:Connect(function()
+diagButtons[4].MouseButton1Click:Connect(function()
     local cam = workspace.CurrentCamera
     local camInfo = {
         "Camera Type: "..tostring(cam.CameraType),
@@ -343,7 +333,7 @@ diagButtons[5].MouseButton1Click:Connect(function()
     setOutput("Camera Info:\n"..table.concat(camInfo,"\n"))
     buttonFeedback("Done!")
 end)
-diagButtons[6].MouseButton1Click:Connect(function()
+diagButtons[5].MouseButton1Click:Connect(function()
     local lighting = game:GetService("Lighting")
     local items = {}
     for _,prop in ipairs({"Ambient","Brightness","ColorShift_Bottom","ColorShift_Top","ClockTime","FogColor","FogEnd","FogStart","OutdoorAmbient","ShadowSoftness"}) do
@@ -355,7 +345,7 @@ diagButtons[6].MouseButton1Click:Connect(function()
     setOutput("Lighting Properties:\n"..table.concat(items,"\n"))
     buttonFeedback("Done!")
 end)
-diagButtons[7].MouseButton1Click:Connect(function()
+diagButtons[6].MouseButton1Click:Connect(function()
     local services = {}
     for _, service in ipairs(game:GetChildren()) do
         table.insert(services, service.ClassName.." ("..service.Name..")")
@@ -365,14 +355,8 @@ diagButtons[7].MouseButton1Click:Connect(function()
 end)
 
 copyBtn.MouseButton1Click:Connect(function()
-    local collect = {}
-    for _, child in pairs(scrollingFrame:GetChildren()) do
-        if child:IsA("TextLabel") then
-            table.insert(collect, child.Text)
-        end
-    end
     if setclipboard then
-        setclipboard(table.concat(collect,"\n"))
+        setclipboard(outputBox.Text or "")
         buttonFeedback("Copied!")
     end
 end)
