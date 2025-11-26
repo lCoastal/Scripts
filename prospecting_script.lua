@@ -1,4 +1,4 @@
--- v1.1.0 coastalhub (2025-11-26) hub restore, multi-diagnostics
+-- v1.2.0 coastalhub (2025-11-26) fix button stacking
 local player = game:GetService("Players").LocalPlayer
 local gui = Instance.new("ScreenGui")
 gui.Name = "CoastalHubGui"
@@ -6,8 +6,8 @@ gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 470, 0, 340)
-frame.Position = UDim2.new(0.5, -235, 0.5, -170)
+frame.Size = UDim2.new(0, 470, 0, 380)
+frame.Position = UDim2.new(0.5, -235, 0.5, -190)
 frame.BackgroundColor3 = Color3.fromRGB(41, 45, 62)
 frame.BorderSizePixel = 0
 frame.Parent = gui
@@ -73,81 +73,43 @@ ejectBtn.MouseButton1Click:Connect(function()
 end)
 
 local btnYStart = 56
-local btnYOffset = 40
+local btnYOffset = 42
 
-local diagBtn = Instance.new("TextButton")
-diagBtn.Text = "Diagnostic: List Usable Events"
-diagBtn.Size = UDim2.new(0, 210, 0, 36)
-diagBtn.Position = UDim2.new(0.5, -105, 0, btnYStart)
-diagBtn.BackgroundColor3 = Color3.fromRGB(57, 222, 143)
-diagBtn.Font = Enum.Font.GothamSemibold
-diagBtn.TextSize = 20
-diagBtn.TextColor3 = Color3.fromRGB(22, 22, 22)
-diagBtn.Parent = frame
-
-local diagBtn2 = Instance.new("TextButton")
-diagBtn2.Text = "Diagnostic: Basic Info"
-diagBtn2.Size = UDim2.new(0, 210, 0, 36)
-diagBtn2.Position = UDim2.new(0.5, -105, 0, btnYStart + btnYOffset)
-diagBtn2.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
-diagBtn2.Font = Enum.Font.GothamSemibold
-diagBtn2.TextSize = 20
-diagBtn2.TextColor3 = Color3.fromRGB(22, 22, 22)
-diagBtn2.Parent = frame
-
-local diagBtn3 = Instance.new("TextButton")
-diagBtn3.Text = "Diagnostic: Backpack Items"
-diagBtn3.Size = UDim2.new(0, 210, 0, 36)
-diagBtn3.Position = UDim2.new(0.5, -105, 0, btnYStart + btnYOffset*2)
-diagBtn3.BackgroundColor3 = Color3.fromRGB(172, 221, 90)
-diagBtn3.Font = Enum.Font.GothamSemibold
-diagBtn3.TextSize = 20
-diagBtn3.TextColor3 = Color3.fromRGB(22, 22, 22)
-diagBtn3.Parent = frame
-
-local diagBtn4 = Instance.new("TextButton")
-diagBtn4.Text = "Diagnostic: Workspace Children"
-diagBtn4.Size = UDim2.new(0, 210, 0, 36)
-diagBtn4.Position = UDim2.new(0.5, -105, 0, btnYStart + btnYOffset*3)
-diagBtn4.BackgroundColor3 = Color3.fromRGB(130, 100, 255)
-diagBtn4.Font = Enum.Font.GothamSemibold
-diagBtn4.TextSize = 20
-diagBtn4.TextColor3 = Color3.fromRGB(22, 22, 22)
-diagBtn4.Parent = frame
-
-local diagBtn5 = Instance.new("TextButton")
-diagBtn5.Text = "Diagnostic: Camera Info"
-diagBtn5.Size = UDim2.new(0, 210, 0, 36)
-diagBtn5.Position = UDim2.new(0.5, -105, 0, btnYStart + btnYOffset*4)
-diagBtn5.BackgroundColor3 = Color3.fromRGB(200, 110, 180)
-diagBtn5.Font = Enum.Font.GothamSemibold
-diagBtn5.TextSize = 20
-diagBtn5.TextColor3 = Color3.fromRGB(22, 22, 22)
-diagBtn5.Parent = frame
-
-local diagBtn6 = Instance.new("TextButton")
-diagBtn6.Text = "Diagnostic: Lighting Properties"
-diagBtn6.Size = UDim2.new(0, 210, 0, 36)
-diagBtn6.Position = UDim2.new(0.5, -105, 0, btnYStart + btnYOffset*5)
-diagBtn6.BackgroundColor3 = Color3.fromRGB(60, 140, 220)
-diagBtn6.Font = Enum.Font.GothamSemibold
-diagBtn6.TextSize = 20
-diagBtn6.TextColor3 = Color3.fromRGB(22, 22, 22)
-diagBtn6.Parent = frame
-
-local diagBtn7 = Instance.new("TextButton")
-diagBtn7.Text = "Diagnostic: Service Status"
-diagBtn7.Size = UDim2.new(0, 210, 0, 36)
-diagBtn7.Position = UDim2.new(0.5, -105, 0, btnYStart + btnYOffset*6)
-diagBtn7.BackgroundColor3 = Color3.fromRGB(90, 210, 210)
-diagBtn7.Font = Enum.Font.GothamSemibold
-diagBtn7.TextSize = 20
-diagBtn7.TextColor3 = Color3.fromRGB(22, 22, 22)
-diagBtn7.Parent = frame
+local diagTexts = {
+    "Diagnostic: List Usable Events",
+    "Diagnostic: Basic Info",
+    "Diagnostic: Backpack Items",
+    "Diagnostic: Workspace Children",
+    "Diagnostic: Camera Info",
+    "Diagnostic: Lighting Properties",
+    "Diagnostic: Service Status"
+}
+local diagColors = {
+    Color3.fromRGB(57, 222, 143),
+    Color3.fromRGB(100, 200, 255),
+    Color3.fromRGB(172, 221, 90),
+    Color3.fromRGB(130, 100, 255),
+    Color3.fromRGB(200, 110, 180),
+    Color3.fromRGB(60, 140, 220),
+    Color3.fromRGB(90, 210, 210)
+}
+local diagButtons = {}
+for i=1,#diagTexts do
+    local btn = Instance.new("TextButton")
+    btn.Text = diagTexts[i]
+    btn.Size = UDim2.new(0, 210, 0, 36)
+    btn.Position = UDim2.new(0.5, -105, 0, btnYStart + btnYOffset * (i-1))
+    btn.BackgroundColor3 = diagColors[i]
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 20
+    btn.TextColor3 = Color3.fromRGB(22, 22, 22)
+    btn.Parent = frame
+    diagButtons[i] = btn
+end
 
 local outputBox = Instance.new("TextBox")
 outputBox.Size = UDim2.new(1, -24, 0, 156)
-outputBox.Position = UDim2.new(0, 12, 0, btnYStart + btnYOffset*7)
+outputBox.Position = UDim2.new(0, 12, 0, btnYStart + btnYOffset * #diagButtons)
 outputBox.BackgroundColor3 = Color3.fromRGB(35, 39, 48)
 outputBox.TextSize = 14
 outputBox.TextColor3 = Color3.fromRGB(219, 233, 255)
@@ -192,15 +154,14 @@ local function getUsableEvents()
     return result
 end
 
-diagBtn.MouseButton1Click:Connect(function()
+diagButtons[1].MouseButton1Click:Connect(function()
     local events = getUsableEvents()
     table.sort(events)
     local allEvents = table.concat(events, "\n")
     usableEventsList = allEvents
     outputBox.Text = allEvents ~= "" and allEvents or "No usable events were found."
 end)
-
-diagBtn2.MouseButton1Click:Connect(function()
+diagButtons[2].MouseButton1Click:Connect(function()
     local info = "Player: "..player.Name.."\nUserId: "..player.UserId.."\nPing: "
     local stats = game:GetService("Stats"):FindFirstChild("Network") 
     if stats then
@@ -208,24 +169,21 @@ diagBtn2.MouseButton1Click:Connect(function()
     end
     outputBox.Text = info
 end)
-
-diagBtn3.MouseButton1Click:Connect(function()
+diagButtons[3].MouseButton1Click:Connect(function()
     local items = {}
     for _,v in ipairs(player.Backpack:GetChildren()) do
         table.insert(items, v.Name)
     end
     outputBox.Text = "Backpack Items:\n"..table.concat(items,"\n")
 end)
-
-diagBtn4.MouseButton1Click:Connect(function()
+diagButtons[4].MouseButton1Click:Connect(function()
     local children = {}
     for _,v in ipairs(game.Workspace:GetChildren()) do
         table.insert(children, v.Name.." ["..v.ClassName.."]")
     end
     outputBox.Text = "Workspace Children:\n"..table.concat(children,"\n")
 end)
-
-diagBtn5.MouseButton1Click:Connect(function()
+diagButtons[5].MouseButton1Click:Connect(function()
     local cam = workspace.CurrentCamera
     local camInfo = {
         "Camera Type: "..tostring(cam.CameraType),
@@ -236,8 +194,7 @@ diagBtn5.MouseButton1Click:Connect(function()
     }
     outputBox.Text = "Camera Info:\n"..table.concat(camInfo,"\n")
 end)
-
-diagBtn6.MouseButton1Click:Connect(function()
+diagButtons[6].MouseButton1Click:Connect(function()
     local lighting = game:GetService("Lighting")
     local items = {}
     for _,prop in ipairs({"Ambient","Brightness","ColorShift_Bottom","ColorShift_Top","ClockTime","FogColor","FogEnd","FogStart","OutdoorAmbient","ShadowSoftness"}) do
@@ -248,8 +205,7 @@ diagBtn6.MouseButton1Click:Connect(function()
     end
     outputBox.Text = "Lighting Properties:\n"..table.concat(items,"\n")
 end)
-
-diagBtn7.MouseButton1Click:Connect(function()
+diagButtons[7].MouseButton1Click:Connect(function()
     local services = {}
     for _, service in ipairs(game:GetChildren()) do
         table.insert(services, service.ClassName.." ("..service.Name..")")
