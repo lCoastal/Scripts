@@ -33,7 +33,7 @@ closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeBtn.Parent = frame
 
 closeBtn.MouseButton1Click:Connect(function()
-	gui:Destroy()
+	gui.Enabled = false
 end)
 
 local ejectBtn = Instance.new("TextButton")
@@ -47,7 +47,7 @@ ejectBtn.TextColor3 = Color3.fromRGB(51, 47, 54)
 ejectBtn.Parent = frame
 
 ejectBtn.MouseButton1Click:Connect(function()
-	player:Kick("You have been ejected by Coastal Hub.")
+	gui:Destroy()
 end)
 
 local diagBtn = Instance.new("TextButton")
@@ -87,22 +87,34 @@ copyBtn.TextSize = 18
 copyBtn.TextColor3 = Color3.fromRGB(240, 246, 255)
 copyBtn.Parent = frame
 
-local usableMethodsList = ""
-diagBtn.MouseButton1Click:Connect(function()
-	local methods = {}
-	for i,v in pairs(getgc(true)) do
-		if type(v) == "function" then
-			local info = debug.getinfo(v)
-			if info and info.name and info.name ~= "" then
-				table.insert(methods, info.name)
+local usableEventsList = ""
+
+local function getUsableEvents()
+	local result = {}
+	local function scan(obj, path)
+		for _, child in ipairs(obj:GetChildren()) do
+			local cpath = path .. "/" .. child.Name
+			for _, v in pairs(child:GetChildren()) do
+				scan(child, cpath)
+			end
+			for _, prop in pairs({"Touched", "Changed", "ChildAdded", "ChildRemoved", "DescendantAdded", "DescendantRemoving"}) do
+				if child[prop] and typeof(child[prop]) == "RBXScriptSignal" then
+					table.insert(result, cpath .. ":" .. prop)
+				end
 			end
 		end
 	end
-	table.sort(methods)
-	local allMethods = table.concat(methods, "\n")
-	usableMethodsList = allMethods
-	outputBox.Text = allMethods ~= "" and allMethods or "No usable methods were found."
-	if #allMethods > 1500 then
+	scan(game, "")
+	return result
+end
+
+diagBtn.MouseButton1Click:Connect(function()
+	local events = getUsableEvents()
+	table.sort(events)
+	local allEvents = table.concat(events, "\n")
+	usableEventsList = allEvents
+	outputBox.Text = allEvents ~= "" and allEvents or "No usable events were found."
+	if #allEvents > 1500 then
 		outputBox.Size = UDim2.new(1, -24, 0, 220)
 	else
 		outputBox.Size = UDim2.new(1, -24, 0, 156)
@@ -111,6 +123,6 @@ end)
 
 copyBtn.MouseButton1Click:Connect(function()
 	if setclipboard then
-		setclipboard(usableMethodsList)
+		setclipboard(usableEventsList)
 	end
 end)
