@@ -1,4 +1,4 @@
--- v1.9.0 coastalhub (2025-11-26) intelligent scroll/copy all, summary line hidden, image1 reference
+-- v2.0.0 coastalhub (2025-11-26) diagnostics always shown, scrollable output, copy always
 
 local player = game:GetService("Players").LocalPlayer
 local gui = Instance.new("ScreenGui")
@@ -22,7 +22,6 @@ frame.Draggable = false
 frame.Parent = gui
 
 local dragging, dragInput, dragStart, startPos
-
 local titleBarHeight = math.floor(46 * scale)
 local function makeDraggable(target, dragFrame)
     target.InputBegan:Connect(function(input)
@@ -31,16 +30,12 @@ local function makeDraggable(target, dragFrame)
             dragStart = input.Position
             startPos = dragFrame.Position
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
         end
     end)
     target.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
-            dragInput = input
-        end
+        if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
     end)
     game:GetService("UserInputService").InputChanged:Connect(function(input)
         if input == dragInput and dragging then
@@ -208,7 +203,7 @@ for i=1,#diagTexts do
 end
 
 local outputAreaY = math.floor(80*scale) + btnYOffset*#diagButtons
-local bottomAreaHeight = math.floor(112*scale)
+local bottomAreaHeight = math.floor(132*scale)
 local outputFrame = Instance.new("Frame")
 outputFrame.Size = UDim2.new(1, 0, 0, bottomAreaHeight)
 outputFrame.Position = UDim2.new(0, 0, 0, outputAreaY)
@@ -217,37 +212,16 @@ outputFrame.BackgroundTransparency = 0.15
 outputFrame.BorderSizePixel = 0
 outputFrame.Parent = inner
 
-local outputBox = Instance.new("TextBox")
-outputBox.Size = UDim2.new(1, -math.floor(24*scale), 1, -math.floor(44*scale))
-outputBox.Position = UDim2.new(0, math.floor(12*scale), 0, math.floor(10*scale))
-outputBox.BackgroundTransparency = 0.1
-outputBox.TextSize = math.floor(14*scale)
-outputBox.TextColor3 = Color3.fromRGB(255,255,255)
-outputBox.Font = Enum.Font.Code
-outputBox.TextWrapped = false
-outputBox.TextXAlignment = Enum.TextXAlignment.Left
-outputBox.TextYAlignment = Enum.TextYAlignment.Top
-outputBox.ClearTextOnFocus = false
-outputBox.MultiLine = true
-outputBox.TextEditable = false
-outputBox.ReadOnly = true
-outputBox.Parent = outputFrame
-
-local lines_total_label = Instance.new("TextLabel")
-lines_total_label.Size = UDim2.new(1, -math.floor(24*scale), 0, math.floor(18*scale))
-lines_total_label.Position = UDim2.new(0, math.floor(12*scale), 1, -math.floor(34*scale))
-lines_total_label.BackgroundTransparency = 1
-lines_total_label.Font = Enum.Font.Code
-lines_total_label.TextSize = math.floor(14*scale)
-lines_total_label.TextColor3 = Color3.fromRGB(210,210,210)
-lines_total_label.Text = ""
-lines_total_label.Visible = false
-lines_total_label.Parent = outputFrame
-
-outputBox.ClearTextOnFocus = false
-outputBox.MultiLine = true
-outputBox.TextEditable = false
-outputBox.ReadOnly = true
+local scrollingFrame = Instance.new("ScrollingFrame")
+scrollingFrame.Size = UDim2.new(1, -math.floor(24*scale), 1, -math.floor(44*scale))
+scrollingFrame.Position = UDim2.new(0, math.floor(12*scale), 0, math.floor(10*scale))
+scrollingFrame.BackgroundTransparency = 0.1
+scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollingFrame.ScrollBarThickness = math.floor(12*scale)
+scrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(255,255,255)
+scrollingFrame.ScrollBarImageTransparency = 0
+scrollingFrame.BorderSizePixel = 0
+scrollingFrame.Parent = outputFrame
 
 local copyBtn = Instance.new("TextButton")
 copyBtn.Text = "📋 Copy"
@@ -275,7 +249,7 @@ feedbackLbl.ZIndex = 100
 feedbackLbl.Visible = false
 feedbackLbl.Parent = outputFrame
 
-local currentOutputText = ""
+local currentOutputLines = {}
 local function buttonFeedback(msg)
     feedbackLbl.Text = msg or "Done!"
     feedbackLbl.Visible = true
@@ -291,22 +265,28 @@ local function buttonFeedback(msg)
 end
 
 local function setOutput(text)
-    currentOutputText = text or ""
-    local lines = {}
-    for line in string.gmatch(currentOutputText, "[^\r\n]+") do
-        table.insert(lines, line)
+    for _,child in pairs(scrollingFrame:GetChildren()) do
+        if child:IsA("TextLabel") then child:Destroy() end
     end
-    outputBox.Text = currentOutputText
-    outputBox.CursorPosition = 1
-
-    -- Show summary line only if there are more than 20 lines, and only when not fully expanded
-    if #lines > 20 then
-        lines_total_label.Text = "("..#lines.." lines total)"
-        lines_total_label.Visible = true
-    else
-        lines_total_label.Text = ""
-        lines_total_label.Visible = false
+    currentOutputLines = {}
+    for line in string.gmatch(text or "", "[^\r\n]+") do
+        table.insert(currentOutputLines, line)
     end
+    local yOffset = 0
+    for i,line in ipairs(currentOutputLines) do
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1,0,0,math.floor(18*scale))
+        lbl.Position = UDim2.new(0,0,0,yOffset)
+        lbl.BackgroundTransparency = 1
+        lbl.TextColor3 = Color3.fromRGB(255,255,255)
+        lbl.Font = Enum.Font.Code
+        lbl.Text = line
+        lbl.TextSize = math.floor(14*scale)
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = scrollingFrame
+        yOffset = yOffset + math.floor(18*scale)
+    end
+    scrollingFrame.CanvasSize = UDim2.new(0,0,0,math.max(yOffset,math.floor(44*scale)))
 end
 
 local usableEventsList = ""
@@ -386,16 +366,17 @@ diagButtons[6].MouseButton1Click:Connect(function()
 end)
 
 copyBtn.MouseButton1Click:Connect(function()
-    local textToCopy = currentOutputText
-    -- Remove summary line from copy
-    textToCopy = string.gsub(textToCopy, "\n?%(%d+ lines total.-%)$", "")
+    local linesToCopy = {}
+    for _, line in ipairs(currentOutputLines) do
+        -- Omit summary lines like (XX lines total)
+        if not string.match(line, "^%(%d+ lines total") then
+            table.insert(linesToCopy, line)
+        end
+    end
     if setclipboard then
-        setclipboard(textToCopy)
+        setclipboard(table.concat(linesToCopy, "\n"))
         buttonFeedback("Copied!")
     end
-    -- On copy, show ALL lines and remove the lines summary label
-    outputBox.Text = textToCopy
-    lines_total_label.Visible = false
 end)
 
 setOutput("")
