@@ -1,5 +1,3 @@
--- v2.0.0 coastalhub (2025-11-26) diagnostics always shown, scrollable output, copy always
-
 local player = game:GetService("Players").LocalPlayer
 local gui = Instance.new("ScreenGui")
 gui.Name = "CoastalHubGui"
@@ -7,7 +5,7 @@ gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local scale = 0.7
-local uiWidth, uiHeight = math.floor(470 * scale), math.floor(420 * scale)
+local uiWidth, uiHeight = math.floor(470 * scale), math.floor(600 * scale)
 local shiftY = math.floor(80 * scale)
 
 local frame = Instance.new("Frame")
@@ -68,22 +66,10 @@ title.TextXAlignment = Enum.TextXAlignment.Center
 title.Parent = inner
 makeDraggable(title, frame)
 
-local closeBtn = Instance.new("TextButton")
-closeBtn.Text = "✕"
-closeBtn.Size = UDim2.new(0, math.floor(44 * scale), 0, math.floor(42 * scale))
-closeBtn.Position = UDim2.new(1, -math.floor(44 * scale) - 6, 0, math.floor(2 * scale))
-closeBtn.BackgroundColor3 = Color3.fromRGB(0,0,0)
-closeBtn.BackgroundTransparency = 0.15
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = math.floor(26*scale)
-closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
-closeBtn.BorderSizePixel = 0
-closeBtn.Parent = inner
-
 local ejectRedBtn = Instance.new("TextButton")
 ejectRedBtn.Text = "X"
-ejectRedBtn.Size = UDim2.new(0, math.floor(46*scale), 0, math.floor(46*scale))
-ejectRedBtn.Position = UDim2.new(1, -math.floor(46 * scale * 2) - 16, 0, math.floor(2 * scale))
+ejectRedBtn.Size = UDim2.new(0, math.floor(44 * scale), 0, math.floor(42 * scale))
+ejectRedBtn.Position = UDim2.new(1, -math.floor(44 * scale) - 6, 0, math.floor(2 * scale))
 ejectRedBtn.BackgroundColor3 = Color3.fromRGB(0,0,0)
 ejectRedBtn.BackgroundTransparency = 0.15
 ejectRedBtn.TextSize = math.floor(38*scale)
@@ -118,7 +104,20 @@ restoreBtn.BorderSizePixel = 0
 restoreBtn.Visible = false
 restoreBtn.Parent = gui
 
--- Ping Toggle Area
+ejectRedBtn.MouseButton1Click:Connect(function()
+    frame.Visible = false
+    restoreBtn.Visible = true
+end)
+
+restoreBtn.MouseButton1Click:Connect(function()
+    frame.Visible = true
+    restoreBtn.Visible = false
+end)
+
+ejectBtn.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
+
 local pingArea = Instance.new("Frame")
 pingArea.Size = UDim2.new(1, 0, 0, math.floor(30 * scale))
 pingArea.Position = UDim2.new(0, 0, 0, math.floor(48 * scale))
@@ -183,7 +182,14 @@ local diagTexts = {
     "Workspace Children",
     "Camera Info",
     "Lighting Properties",
-    "Service Status"
+    "Service Status",
+    "All Services (Props/Children)",
+    "Running Scripts",
+    "Player Stats",
+    "Constraints",
+    "Network Ownership",
+    "Sound Sources",
+    "Input Devices"
 }
 local diagButtons = {}
 for i=1,#diagTexts do
@@ -365,10 +371,195 @@ diagButtons[6].MouseButton1Click:Connect(function()
     buttonFeedback("Done!")
 end)
 
+diagButtons[7].MouseButton1Click:Connect(function()
+    local result = {}
+    for _, service in ipairs(game:GetChildren()) do
+        table.insert(result, "=== "..service.ClassName.." ("..service.Name..") ===")
+        local props = {"Name", "ClassName", "Parent", "Archivable"}
+        for _, prop in ipairs(props) do
+            local ok, val = pcall(function() return service[prop] end)
+            if ok then
+                table.insert(result, "  "..prop..": "..tostring(val))
+            end
+        end
+        local children = service:GetChildren()
+        if #children > 0 then
+            table.insert(result, "  Children ("..#children.."):")
+            for _, child in ipairs(children) do
+                table.insert(result, "    - "..child.Name.." ["..child.ClassName.."]")
+            end
+        end
+        table.insert(result, "")
+    end
+    setOutput(table.concat(result, "\n"))
+    buttonFeedback("Done!")
+end)
+
+diagButtons[8].MouseButton1Click:Connect(function()
+    local scripts = {}
+    local function findScripts(parent, path)
+        for _, child in ipairs(parent:GetChildren()) do
+            local cpath = path.."/"..child.Name
+            if child:IsA("LocalScript") or child:IsA("Script") or child:IsA("ModuleScript") then
+                local scriptType = child.ClassName
+                local disabled = ""
+                if child:IsA("LocalScript") or child:IsA("Script") then
+                    local ok, val = pcall(function() return child.Disabled end)
+                    if ok then
+                        disabled = val and " [DISABLED]" or " [RUNNING]"
+                    end
+                end
+                table.insert(scripts, scriptType..": "..cpath..disabled)
+            end
+            pcall(function() findScripts(child, cpath) end)
+        end
+    end
+    pcall(function() findScripts(game, "game") end)
+    setOutput("Running Scripts:\n"..table.concat(scripts, "\n"))
+    buttonFeedback("Done!")
+end)
+
+diagButtons[9].MouseButton1Click:Connect(function()
+    local stats = {}
+    table.insert(stats, "=== Player Stats ===")
+    table.insert(stats, "Name: "..player.Name)
+    table.insert(stats, "DisplayName: "..player.DisplayName)
+    table.insert(stats, "UserId: "..tostring(player.UserId))
+    table.insert(stats, "AccountAge: "..tostring(player.AccountAge).." days")
+    table.insert(stats, "MembershipType: "..tostring(player.MembershipType))
+    table.insert(stats, "Team: "..tostring(player.Team))
+    local char = player.Character
+    if char then
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            table.insert(stats, "")
+            table.insert(stats, "=== Humanoid Stats ===")
+            table.insert(stats, "Health: "..tostring(humanoid.Health).."/"..tostring(humanoid.MaxHealth))
+            table.insert(stats, "WalkSpeed: "..tostring(humanoid.WalkSpeed))
+            table.insert(stats, "JumpPower: "..tostring(humanoid.JumpPower))
+            table.insert(stats, "JumpHeight: "..tostring(humanoid.JumpHeight))
+        end
+        local rootPart = char:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            table.insert(stats, "")
+            table.insert(stats, "=== Position ===")
+            table.insert(stats, "Position: "..tostring(rootPart.Position))
+            table.insert(stats, "Velocity: "..tostring(rootPart.AssemblyLinearVelocity))
+        end
+    end
+    local leaderstats = player:FindFirstChild("leaderstats")
+    if leaderstats then
+        table.insert(stats, "")
+        table.insert(stats, "=== Leaderstats ===")
+        for _, stat in ipairs(leaderstats:GetChildren()) do
+            local ok, val = pcall(function() return stat.Value end)
+            if ok then
+                table.insert(stats, stat.Name..": "..tostring(val))
+            end
+        end
+    end
+    setOutput(table.concat(stats, "\n"))
+    buttonFeedback("Done!")
+end)
+
+diagButtons[10].MouseButton1Click:Connect(function()
+    local constraints = {}
+    local function findConstraints(parent, path)
+        for _, child in ipairs(parent:GetChildren()) do
+            local cpath = path.."/"..child.Name
+            if child:IsA("Constraint") then
+                local info = child.ClassName..": "..cpath
+                local att0, att1 = "", ""
+                pcall(function()
+                    if child.Attachment0 then att0 = child.Attachment0:GetFullName() end
+                    if child.Attachment1 then att1 = child.Attachment1:GetFullName() end
+                end)
+                if att0 ~= "" or att1 ~= "" then
+                    info = info.." | Att0: "..att0.." | Att1: "..att1
+                end
+                table.insert(constraints, info)
+            end
+            pcall(function() findConstraints(child, cpath) end)
+        end
+    end
+    pcall(function() findConstraints(workspace, "workspace") end)
+    setOutput("Constraints:\n"..table.concat(constraints, "\n"))
+    buttonFeedback("Done!")
+end)
+
+diagButtons[11].MouseButton1Click:Connect(function()
+    local ownership = {}
+    local function findOwnership(parent, path)
+        for _, child in ipairs(parent:GetChildren()) do
+            local cpath = path.."/"..child.Name
+            if child:IsA("BasePart") then
+                local ok, owner = pcall(function() return child:GetNetworkOwner() end)
+                if ok then
+                    local ownerName = owner and owner.Name or "Server"
+                    table.insert(ownership, cpath.." -> "..ownerName)
+                end
+            end
+            pcall(function() findOwnership(child, cpath) end)
+        end
+    end
+    pcall(function() findOwnership(workspace, "workspace") end)
+    setOutput("Network Ownership:\n"..table.concat(ownership, "\n"))
+    buttonFeedback("Done!")
+end)
+
+diagButtons[12].MouseButton1Click:Connect(function()
+    local sounds = {}
+    local function findSounds(parent, path)
+        for _, child in ipairs(parent:GetChildren()) do
+            local cpath = path.."/"..child.Name
+            if child:IsA("Sound") then
+                local info = cpath
+                local playing = ""
+                local soundId = ""
+                pcall(function()
+                    playing = child.IsPlaying and " [PLAYING]" or " [STOPPED]"
+                    soundId = " SoundId: "..tostring(child.SoundId)
+                end)
+                table.insert(sounds, info..playing..soundId)
+            end
+            pcall(function() findSounds(child, cpath) end)
+        end
+    end
+    pcall(function() findSounds(game, "game") end)
+    setOutput("Sound Sources:\n"..table.concat(sounds, "\n"))
+    buttonFeedback("Done!")
+end)
+
+diagButtons[13].MouseButton1Click:Connect(function()
+    local uis = game:GetService("UserInputService")
+    local devices = {}
+    table.insert(devices, "=== Input Devices ===")
+    table.insert(devices, "KeyboardEnabled: "..tostring(uis.KeyboardEnabled))
+    table.insert(devices, "MouseEnabled: "..tostring(uis.MouseEnabled))
+    table.insert(devices, "TouchEnabled: "..tostring(uis.TouchEnabled))
+    table.insert(devices, "GamepadEnabled: "..tostring(uis.GamepadEnabled))
+    table.insert(devices, "AccelerometerEnabled: "..tostring(uis.AccelerometerEnabled))
+    table.insert(devices, "GyroscopeEnabled: "..tostring(uis.GyroscopeEnabled))
+    table.insert(devices, "VREnabled: "..tostring(uis.VREnabled))
+    local gamepads = uis:GetConnectedGamepads()
+    if #gamepads > 0 then
+        table.insert(devices, "")
+        table.insert(devices, "Connected Gamepads: "..#gamepads)
+        for _, gp in ipairs(gamepads) do
+            table.insert(devices, "  - "..tostring(gp))
+        end
+    end
+    table.insert(devices, "")
+    table.insert(devices, "MouseBehavior: "..tostring(uis.MouseBehavior))
+    table.insert(devices, "MouseDeltaSensitivity: "..tostring(uis.MouseDeltaSensitivity))
+    table.insert(devices, "MouseIconEnabled: "..tostring(uis.MouseIconEnabled))
+    setOutput(table.concat(devices, "\n"))
+    buttonFeedback("Done!")
+end)
+
 copyBtn.MouseButton1Click:Connect(function()
     local linesToCopy = {}
     for _, line in ipairs(currentOutputLines) do
-        -- Omit summary lines like (XX lines total)
         if not string.match(line, "^%(%d+ lines total") then
             table.insert(linesToCopy, line)
         end
