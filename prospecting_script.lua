@@ -436,7 +436,6 @@ diagButtons[9].MouseButton1Click:Connect(function()
             table.insert(stats, "=== Humanoid Stats ===")
             table.insert(stats, "Health: "..tostring(humanoid.Health).."/"..tostring(humanoid.MaxHealth))
             table.insert(stats, "WalkSpeed: "..tostring(humanoid.WalkSpeed))
-            table.insert(stats, "JumpPower: "..tostring(humanoid.JumpPower))
             table.insert(stats, "JumpHeight: "..tostring(humanoid.JumpHeight))
         end
         local rootPart = char:FindFirstChild("HumanoidRootPart")
@@ -444,7 +443,10 @@ diagButtons[9].MouseButton1Click:Connect(function()
             table.insert(stats, "")
             table.insert(stats, "=== Position ===")
             table.insert(stats, "Position: "..tostring(rootPart.Position))
-            table.insert(stats, "Velocity: "..tostring(rootPart.AssemblyLinearVelocity))
+            local ok, vel = pcall(function() return rootPart.AssemblyLinearVelocity end)
+            if ok then
+                table.insert(stats, "Velocity: "..tostring(vel))
+            end
         end
     end
     local leaderstats = player:FindFirstChild("leaderstats")
@@ -503,7 +505,11 @@ diagButtons[11].MouseButton1Click:Connect(function()
         end
     end
     pcall(function() findOwnership(workspace, "workspace") end)
-    setOutput("Network Ownership:\n"..table.concat(ownership, "\n"))
+    if #ownership == 0 then
+        setOutput("Network Ownership:\n(Server-side only - not available from LocalScript)")
+    else
+        setOutput("Network Ownership:\n"..table.concat(ownership, "\n"))
+    end
     buttonFeedback("Done!")
 end)
 
