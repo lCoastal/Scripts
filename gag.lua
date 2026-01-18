@@ -84,5 +84,403 @@ closeButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
 closeButton.BorderSizePixel = 0
 closeButton.Text = "X"
 closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize =*
-
+closeButton.TextSize = math.floor(20 * scale)
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.Parent = titleBar
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 8)
+closeCorner.Parent = closeButton
+
+-- Eject button (X button that removes the script)
+local ejectButton = Instance.new("TextButton")
+ejectButton.Size = UDim2.new(0, math.floor(40 * scale), 0, math.floor(40 * scale))
+ejectButton.Position = UDim2.new(1, -math.floor(90 * scale), 0, math.floor(5 * scale))
+ejectButton.BackgroundColor3 = Color3.fromRGB(255, 69, 0)
+ejectButton.BorderSizePixel = 0
+ejectButton.Text = "E"
+ejectButton.Font = Enum.Font.GothamBold
+ejectButton.TextSize = math.floor(20 * scale)
+ejectButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ejectButton.Parent = titleBar
+
+local ejectCorner = Instance.new("UICorner")
+ejectCorner.CornerRadius = UDim.new(0, 8)
+ejectCorner.Parent = ejectButton
+
+-- Content area
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, -20, 1, -math.floor(110 * scale))
+contentFrame.Position = UDim2.new(0, 10, 0, math.floor(55 * scale))
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = mainFrame
+
+-- Scrolling frame for remotes
+local remoteScrollFrame = Instance.new("ScrollingFrame")
+remoteScrollFrame.Size = UDim2.new(1, 0, 1, 0)
+remoteScrollFrame.Position = UDim2.new(0, 0, 0, 0)
+remoteScrollFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+remoteScrollFrame.BackgroundTransparency = 0.3
+remoteScrollFrame.BorderSizePixel = 1
+remoteScrollFrame.BorderColor3 = Color3.fromRGB(50, 50, 50)
+remoteScrollFrame.ScrollBarThickness = 8
+remoteScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(34, 139, 34)
+remoteScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+remoteScrollFrame.Parent = contentFrame
+
+local scrollCorner = Instance.new("UICorner")
+scrollCorner.CornerRadius = UDim. new(0, 8)
+scrollCorner.Parent = remoteScrollFrame
+
+-- UI list layout for remotes
+local remoteLayout = Instance.new("UIListLayout")
+remoteLayout.SortOrder = Enum.SortOrder. LayoutOrder
+remoteLayout. Padding = UDim. new(0, 5)
+remoteLayout.Parent = remoteScrollFrame
+
+-- Bottom button frame
+local buttonFrame = Instance.new("Frame")
+buttonFrame.Size = UDim2.new(1, -20, 0, math.floor(45 * scale))
+buttonFrame.Position = UDim2.new(0, 10, 1, -math.floor(50 * scale))
+buttonFrame.BackgroundTransparency = 1
+buttonFrame.Parent = mainFrame
+
+-- Scan button
+local scanButton = Instance.new("TextButton")
+scanButton.Size = UDim2.new(0.48, 0, 1, 0)
+scanButton.Position = UDim2.new(0, 0, 0, 0)
+scanButton.BackgroundColor3 = Color3.fromRGB(34, 139, 34)
+scanButton.BorderSizePixel = 0
+scanButton.Text = "Scan Remotes"
+scanButton.Font = Enum.Font. GothamBold
+scanButton.TextSize = math.floor(16 * scale)
+scanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+scanButton.Parent = buttonFrame
+
+local scanCorner = Instance.new("UICorner")
+scanCorner.CornerRadius = UDim.new(0, 6)
+scanCorner.Parent = scanButton
+
+-- Copy to clipboard button
+local copyButton = Instance.new("TextButton")
+copyButton.Size = UDim2.new(0.48, 0, 1, 0)
+copyButton.Position = UDim2.new(0.52, 0, 0, 0)
+copyButton.BackgroundColor3 = Color3.fromRGB(30, 144, 255)
+copyButton.BorderSizePixel = 0
+copyButton.Text = "Copy to Clipboard"
+copyButton. Font = Enum.Font.GothamBold
+copyButton. TextSize = math.floor(16 * scale)
+copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+copyButton.Parent = buttonFrame
+
+local copyCorner = Instance.new("UICorner")
+copyCorner.CornerRadius = UDim. new(0, 6)
+copyCorner.Parent = copyButton
+
+-- Remote data storage
+local remotes = {}
+
+-- Function to create a remote entry in the list
+local function createRemoteEntry(remoteData, index)
+	local entryFrame = Instance.new("Frame")
+	entryFrame.Name = "Remote_" .. index
+	entryFrame.Size = UDim2.new(1, -10, 0, math.floor(70 * scale))
+	entryFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	entryFrame.BorderSizePixel = 0
+	entryFrame. LayoutOrder = index
+	entryFrame.Parent = remoteScrollFrame
+	
+	local entryCorner = Instance.new("UICorner")
+	entryCorner.CornerRadius = UDim.new(0, 6)
+	entryCorner.Parent = entryFrame
+	
+	-- Type label
+	local typeLabel = Instance.new("TextLabel")
+	typeLabel.Size = UDim2.new(0, math.floor(120 * scale), 0, math.floor(20 * scale))
+	typeLabel.Position = UDim2.new(0, 10, 0, 5)
+	typeLabel.BackgroundColor3 = remoteData.Type == "RemoteEvent" and Color3.fromRGB(34, 139, 34) or Color3.fromRGB(30, 144, 255)
+	typeLabel.BorderSizePixel = 0
+	typeLabel.Text = remoteData.Type
+	typeLabel.Font = Enum. Font.GothamBold
+	typeLabel.TextSize = math.floor(11 * scale)
+	typeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	typeLabel.Parent = entryFrame
+	
+	local typeCorner = Instance.new("UICorner")
+	typeCorner.CornerRadius = UDim.new(0, 4)
+	typeCorner.Parent = typeLabel
+	
+	-- Name label
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, -20, 0, math.floor(20 * scale))
+	nameLabel.Position = UDim2.new(0, 10, 0, 28)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = remoteData. Name
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextSize = math.floor(13 * scale)
+	nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel. TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.Parent = entryFrame
+	
+	-- Path label
+	local pathLabel = Instance.new("TextLabel")
+	pathLabel.Size = UDim2.new(1, -20, 0, math.floor(18 * scale))
+	pathLabel.Position = UDim2.new(0, 10, 0, 48)
+	pathLabel.BackgroundTransparency = 1
+	pathLabel.Text = remoteData.Path
+	pathLabel.Font = Enum.Font. Gotham
+	pathLabel.TextSize = math.floor(10 * scale)
+	pathLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+	pathLabel.TextXAlignment = Enum.TextXAlignment.Left
+	pathLabel.TextTruncate = Enum. TextTruncate.AtEnd
+	pathLabel.Parent = entryFrame
+end
+
+-- Function to recursively search for remotes
+local function scanForRemotes()
+	-- Clear existing entries
+	for _, child in pairs(remoteScrollFrame:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+	
+	remotes = {}
+	
+	local function scan(parent)
+		for _, obj in pairs(parent:GetDescendants()) do
+			if obj:IsA("RemoteEvent") then
+				table.insert(remotes, {
+					Type = "RemoteEvent",
+					Name = obj.Name,
+					Path = obj: GetFullName()
+				})
+			elseif obj:IsA("RemoteFunction") then
+				table.insert(remotes, {
+					Type = "RemoteFunction",
+					Name = obj.Name,
+					Path = obj:GetFullName()
+				})
+			end
+		end
+	end
+	
+	-- Scan game locations
+	pcall(function() scan(game: GetService("ReplicatedStorage")) end)
+	pcall(function() scan(game:GetService("Workspace")) end)
+	pcall(function() scan(game:GetService("Players")) end)
+	
+	-- Populate UI
+	for i, remote in ipairs(remotes) do
+		createRemoteEntry(remote, i)
+	end
+	
+	-- Update canvas size
+	local entryHeight = math.floor(70 * scale)
+	local entrySpacing = 5
+	local totalHeight = (#remotes * entryHeight) + ((#remotes - 1) * entrySpacing) + 10
+	remoteScrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
+	
+	titleLabel.Text = string.format("🔍 Remote Scanner (%d)", #remotes)
+	print(string.format("✅ Found %d remotes", #remotes))
+end
+
+-- Function to copy remotes to clipboard
+local function copyToClipboard()
+	if #remotes == 0 then
+		warn("⚠️ No remotes to copy. Scan first!")
+		copyButton.Text = "⚠️ Scan First!"
+		task.wait(1. 5)
+		copyButton.Text = "Copy to Clipboard"
+		return
+	end
+	
+	local output = "=== REMOTES FOUND ===\n\n"
+	for i, remote in ipairs(remotes) do
+		output = output .. string.format("[%d] %s:  %s\n    Path: %s\n\n", i, remote.Type, remote.Name, remote.Path)
+	end
+	
+	output = output .. string.format("\nTotal:  %d remotes found", #remotes)
+	
+	-- Try different clipboard functions depending on executor
+	local success = pcall(function()
+		if setclipboard then
+			setclipboard(output)
+		elseif toclipboard then
+			toclipboard(output)
+		elseif Clipboard and Clipboard.set then
+			Clipboard.set(output)
+		else
+			error("No clipboard function found")
+		end
+	end)
+	
+	if success then
+		print("✅ Copied to clipboard!")
+		print(output)
+		copyButton.Text = "✅ Copied!"
+	else
+		warn("⚠️ Clipboard not supported. Output printed to console.")
+		print(output)
+		copyButton.Text = "✅ Check Console"
+	end
+	
+	task.wait(1.5)
+	copyButton.Text = "Copy to Clipboard"
+end
+
+-- Function to handle UI opening with smooth animation
+local function openUI()
+	mainFrame.Visible = true
+	mainFrame.Size = UDim2.new(0, 0, 0, 0)
+	mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+	
+	local openTween = TweenService:Create(
+		mainFrame,
+		TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection. Out),
+		{
+			Size = UDim2.new(0, mainWidth, 0, mainHeight),
+			Position = UDim2.new(0.5, -mainWidth // 2, 0.5, -mainHeight // 2)
+		}
+	)
+	openTween:Play()
+	
+	-- Hide toggle button with fade
+	local toggleFade = TweenService:Create(
+		toggleButton,
+		TweenInfo.new(0.2, Enum.EasingStyle.Linear),
+		{BackgroundTransparency = 1, TextTransparency = 1}
+	)
+	toggleFade:Play()
+	toggleFade.Completed:Connect(function()
+		toggleButton.Visible = false
+	end)
+	
+	-- Auto-scan on open
+	if #remotes == 0 then
+		task.wait(0.3)
+		scanForRemotes()
+	end
+end
+
+-- Function to handle UI closing with smooth animation
+local function closeUI()
+	local closeTween = TweenService:Create(
+		mainFrame,
+		TweenInfo.new(0.3, Enum. EasingStyle.Back, Enum.EasingDirection.In),
+		{
+			Size = UDim2.new(0, 0, 0, 0),
+			Position = UDim2.new(0.5, 0, 0.5, 0)
+		}
+	)
+	closeTween:Play()
+	closeTween.Completed:Connect(function()
+		mainFrame.Visible = false
+	end)
+	
+	-- Show toggle button with fade
+	toggleButton.Visible = true
+	toggleButton.BackgroundTransparency = 1
+	toggleButton.TextTransparency = 1
+	
+	local toggleFade = TweenService:Create(
+		toggleButton,
+		TweenInfo.new(0.2, Enum. EasingStyle.Linear),
+		{BackgroundTransparency = 0, TextTransparency = 0}
+	)
+	toggleFade:Play()
+end
+
+-- Function to eject (remove) the script
+local function ejectScript()
+	print("⏏ Ejecting Remote Scanner...")
+	gui:Destroy()
+end
+
+-- Dragging functionality for toggle button
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+local function updateDrag(input)
+	local delta = input. Position - dragStart
+	toggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta. X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+toggleButton.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType. MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = toggleButton.Position
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+toggleButton.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		updateDrag(input)
+	end
+end)
+
+-- Connect buttons
+toggleButton.MouseButton1Click:Connect(function()
+	if not dragging then
+		openUI()
+	end
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+	closeUI()
+end)
+
+ejectButton.MouseButton1Click:Connect(function()
+	ejectScript()
+end)
+
+scanButton.MouseButton1Click:Connect(function()
+	scanForRemotes()
+end)
+
+copyButton.MouseButton1Click:Connect(function()
+	copyToClipboard()
+end)
+
+-- Hover effects
+scanButton.MouseEnter:Connect(function()
+	scanButton.BackgroundColor3 = Color3.fromRGB(44, 169, 44)
+end)
+
+scanButton.MouseLeave:Connect(function()
+	scanButton.BackgroundColor3 = Color3.fromRGB(34, 139, 34)
+end)
+
+copyButton.MouseEnter:Connect(function()
+	copyButton.BackgroundColor3 = Color3.fromRGB(50, 164, 255)
+end)
+
+copyButton.MouseLeave:Connect(function()
+	copyButton.BackgroundColor3 = Color3.fromRGB(30, 144, 255)
+end)
+
+-- Initialize UI in closed state
+mainFrame.Visible = false
+toggleButton.Visible = true
+
+print("🔍 Remote Scanner loaded!  Click the green button to open.")
+
+-- Auto-open on first load
+task.wait(0.5)
+openUI()
