@@ -391,15 +391,20 @@ local function pingString()
     return "<@" .. digits .. ">", digits
 end
 
+-- one egg = one line:  Name | Rarity | Size | Income | Mutations
 local function eggLine(e)
-    local parts = { string.format("• **%s** [%s]", e.name, e.rarity), "$" .. short(e.money) .. "/s" }
-    parts[#parts + 1] = string.format("Size: x%.2f", 1 + e.boost / 100)
-    if #e.muts > 0 then parts[#parts + 1] = table.concat(e.muts, "/") end
-    parts[#parts + 1] = "(" .. e.area .. ")"
-    return table.concat(parts, " · ")
+    local mut = #e.muts > 0 and table.concat(e.muts, ", ") or "None"
+    return table.concat({
+        e.pet or e.name,
+        e.rarity,
+        string.format("x%.2f", 1 + e.boost / 100),
+        "$" .. short(e.money) .. "/s",
+        mut,
+    }, " | ")
 end
 
-local function renderTemplate(eggs, total, includePing, noEggs)
+-- all eggs of a batch, best income first, one line each
+local function eggLines(eggs)
     local lines = {}
     local sorted = table.clone(eggs)
     table.sort(sorted, function(a, b) return a.money > b.money end)
@@ -408,12 +413,16 @@ local function renderTemplate(eggs, total, includePing, noEggs)
         if i > cap then lines[#lines + 1] = string.format("…and %d more", #sorted - cap) break end
         lines[#lines + 1] = eggLine(e)
     end
+    return table.concat(lines, "\n")
+end
+
+local function renderTemplate(eggs, total, includePing, noEggs)
     local pingStr = includePing and select(1, pingString()) or ""
     local map = {
         ping     = pingStr,
         count    = #eggs,
         total    = total,
-        eggs     = noEggs and "" or table.concat(lines, "\n"),
+        eggs     = noEggs and "" or eggLines(eggs),
         joinlink = ("https://www.roblox.com/games/start?placeId=%d&gameInstanceId=%s"):format(game.PlaceId, game.JobId),
         server   = game.JobId,
         player   = LP.Name,
@@ -434,26 +443,8 @@ local function renderTemplate(eggs, total, includePing, noEggs)
     return (out:gsub("^%s+", ""))
 end
 
--- one card per egg (Discord allows 10 embeds per message)
-local EMBED_TITLE  = "Eggs"
+local EMBED_TITLE  = "Egg spawned"
 local EMBED_FOOTER = "CoastalHub"
-local function eggCard(e, isTest)
-    local mut = #e.muts > 0 and table.concat(e.muts, ", ") or "None"
-    return {
-        title  = isTest and ("🧪 TEST — " .. EMBED_TITLE) or EMBED_TITLE,
-        color  = 0x57F287,
-        fields = {
-            { name = "Pet",       value = e.pet or e.name,                                              inline = true },
-            { name = "Rarity",    value = e.rarity,                                                     inline = true },
-            { name = "Size",      value = string.format("x%.2f", 1 + e.boost / 100),                    inline = true },
-            { name = "Income",    value = "$" .. short(e.money) .. "/s",                                inline = true },
-            { name = "Mutations", value = mut,                                                          inline = true },
-            { name = "Area",      value = e.area,                                                       inline = false },
-        },
-        footer    = { text = EMBED_FOOTER .. " | " .. LP.Name },
-        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-    }
-end
 
 local logFn = print
 local function sendWebhook(eggs, total, isTest)
@@ -463,20 +454,18 @@ local function sendWebhook(eggs, total, isTest)
     local pingStr, pingId = pingString()
     local payload = { username = tostring(CFG.Username ~= "" and CFG.Username or "Egg Watcher") }
     if CFG.UseEmbed then
-        local sorted = table.clone(eggs)
-        table.sort(sorted, function(x, y) return x.money > y.money end)
-        local cap = math.min(10, math.max(1, tonumber(CFG.MaxLines) or 10))
-        payload.embeds = {}
-        for i, e in ipairs(sorted) do
-            if i > cap then break end
-            payload.embeds[#payload.embeds + 1] = eggCard(e, isTest)
-        end
-        -- text above the cards: your template (without {eggs}, since the cards show them)
+        payload.embeds = { {
+            title       = isTest and ("🧪 TEST — " .. EMBED_TITLE) or EMBED_TITLE,
+            description = eggLines(eggs):sub(1, 4000),
+            color       = 0x57F287,
+            footer      = { text = EMBED_FOOTER .. " | " .. LP.Name },
+            timestamp   = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+        } }
+        -- text above the embed: your template (without {eggs}, since the embed lists them)
         local text = renderTemplate(eggs, total, true, true)
         if pingStr ~= "" and not tostring(CFG.Template):find("{ping}", 1, true) then
             text = pingStr .. " " .. text
         end
-        if #sorted > cap then text = text .. string.format("\n…and %d more not shown", #sorted - cap) end
         if isTest then text = "🧪 **TEST MESSAGE (not a real spawn)**\n" .. text end
         text = text:sub(1, 1990)
         payload.content = text:match("%S") and text or nil
