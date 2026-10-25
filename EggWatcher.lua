@@ -50,6 +50,7 @@ local function pick(t, names)
     for _, n in ipairs(names) do
         if t[n] ~= nil then return t[n] end
     end
+    return nil -- explicit: falling off the end returns NO value, and tonumber(pick(..)) then errors "missing argument #1"
 end
 
 --------------------------------------------------------------------
@@ -176,6 +177,14 @@ local function rarityOf(def)
     return tostring(r)
 end
 
+-- the egg's own name ("Drilla Egg") lives in def.Egg.DisplayName; def.DisplayName is the pet ("Drilla")
+local function eggNameOf(def, fallback)
+    local egg = type(def) == "table" and def.Egg or nil
+    local n = type(egg) == "table" and egg.DisplayName or nil
+    if n == nil then n = pick(def, F.d_name) end
+    return tostring(n or fallback)
+end
+
 -- Every egg name / rarity the dropdowns can offer. Filled from the game's data table at load,
 -- and topped up with anything seen in live snapshots.
 local OPTIONS = { names = {}, rarities = {} }
@@ -191,7 +200,7 @@ local function discoverOptions()
             total += 1
             if type(def.Egg) == "table" then
                 eggCount += 1
-                addOption("names", tostring(pick(def, F.d_name) or id))
+                addOption("names", eggNameOf(def, id))
                 addOption("rarities", rarityOf(def))
             end
         end
@@ -199,7 +208,7 @@ local function discoverOptions()
     if eggCount == 0 and total > 0 then -- no `Egg` marker found: offer every asset instead
         for id, def in pairs(Assets) do
             if type(def) == "table" then
-                addOption("names", tostring(pick(def, F.d_name) or id))
+                addOption("names", eggNameOf(def, id))
                 addOption("rarities", rarityOf(def))
             end
         end
@@ -311,13 +320,14 @@ local function buildEggs(snapshot)
         local boost = (scale / (avg > 0 and avg or 1) - 1) * 100
 
         local rarity = rarityOf(def)
-        addOption("names", tostring(pick(def, F.d_name) or cat))
+        addOption("names", eggNameOf(def, cat))
         addOption("rarities", rarity)
 
         eggs[#eggs + 1] = {
             uid    = tostring(pick(rec, F.uid)),
             cat    = cat,
-            name   = tostring(pick(def, F.d_name) or cat),
+            name   = eggNameOf(def, cat),
+            pet    = tostring(pick(def, F.d_name) or cat),
             rarity = tostring(rarity or "Unknown"),
             area   = tostring(pick(rec, F.area) or r.area or "?"),
             scale  = scale,
@@ -348,7 +358,7 @@ local function passes(e)
     if maxS then results[#results + 1] = e.boost <= maxS end
 
     if next(CFG.Names) ~= nil then
-        results[#results + 1] = CFG.Names[e.name] == true or CFG.Names[e.cat] == true
+        results[#results + 1] = CFG.Names[e.name] == true or CFG.Names[e.pet] == true or CFG.Names[e.cat] == true
     end
     if next(CFG.Rarities) ~= nil then
         results[#results + 1] = CFG.Rarities[e.rarity] == true
@@ -419,7 +429,7 @@ local function renderTemplate(eggs, total, includePing)
 end
 
 local logFn = print
-local function sendWebhook(eggs, total)
+local function sendWebhook(eggs, total, isTest)
     if not httpReq then return false, "executor has no http request function" end
     if not validWebhook(CFG.Webhook) then return false, "webhook URL is empty/invalid" end
 
@@ -428,14 +438,14 @@ local function sendWebhook(eggs, total)
     if CFG.UseEmbed then
         payload.content = pingStr ~= "" and pingStr or nil
         payload.embeds = { {
-            title       = "🥚 New eggs spawned",
+            title       = isTest and "🧪 TEST MESSAGE (not a real spawn)" or "🥚 New eggs spawned",
             description = renderTemplate(eggs, total, false):sub(1, 4000),
             color       = 0xF5C542,
             footer      = { text = "Egg Watcher · " .. LP.Name },
             timestamp   = os.date("!%Y-%m-%dT%H:%M:%SZ"),
         } }
     else
-        payload.content = renderTemplate(eggs, total, true):sub(1, 1990)
+        payload.content = ((isTest and "🧪 **TEST MESSAGE (not a real spawn)**\n" or "") .. renderTemplate(eggs, total, true)):sub(1, 1990)
     end
     payload.allowed_mentions = { parse = {}, users = pingId and { pingId } or {} }
 
@@ -812,7 +822,7 @@ button(pHook, "Send test message", function()
         sample[1] = { uid = "test", cat = "TestEgg", name = "Test Egg", rarity = "Legendary", area = "Forest", scale = 1.3, money = 1.5e6,
             weight = 2.4, boost = 30, muts = {} }
     end
-    local ok, err = sendWebhook(sample, lastTotal)
+    local ok, err = sendWebhook(sample, lastTotal, true)
     logFn(ok and "test message sent" or ("test FAILED: " .. tostring(err)))
     showPage("Log")
 end, C.panel)
@@ -820,7 +830,7 @@ end, C.panel)
 button(pMsg, "Send test with this template", function()
     local sample = { { uid = "test", cat = "TestEgg", name = "Test Egg", rarity = "Legendary", area = "Forest", scale = 1.3, money = 1.5e6,
         weight = 2.4, boost = 30, muts = { "Golden" } } }
-    local ok, err = sendWebhook(sample, lastTotal)
+    local ok, err = sendWebhook(sample, lastTotal, true)
     logFn(ok and "test message sent" or ("test FAILED: " .. tostring(err)))
     showPage("Log")
 end, C.panel)
