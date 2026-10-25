@@ -393,9 +393,8 @@ end
 
 local function eggLine(e)
     local parts = { string.format("• **%s** [%s]", e.name, e.rarity), "$" .. short(e.money) .. "/s" }
-    if e.weight then parts[#parts + 1] = string.format("%.2fkg", e.weight) end
-    parts[#parts + 1] = string.format("%+.0f%% size", e.boost)
-    if #e.muts > 0 then parts[#parts + 1] = "✨" .. table.concat(e.muts, "/") end
+    parts[#parts + 1] = string.format("Size: x%.2f", 1 + e.boost / 100)
+    if #e.muts > 0 then parts[#parts + 1] = table.concat(e.muts, "/") end
     parts[#parts + 1] = "(" .. e.area .. ")"
     return table.concat(parts, " · ")
 end
@@ -446,8 +445,7 @@ local function eggCard(e, isTest)
         fields = {
             { name = "Pet",       value = e.pet or e.name,                                              inline = true },
             { name = "Rarity",    value = e.rarity,                                                     inline = true },
-            { name = "Scale",     value = string.format("x%.2f (%+.0f%%)", e.scale, e.boost),           inline = true },
-            { name = "Weight",    value = e.weight and string.format("%.2f kg", e.weight) or "?",       inline = true },
+            { name = "Size",      value = string.format("x%.2f", 1 + e.boost / 100),                    inline = true },
             { name = "Income",    value = "$" .. short(e.money) .. "/s",                                inline = true },
             { name = "Mutations", value = mut,                                                          inline = true },
             { name = "Area",      value = e.area,                                                       inline = false },
