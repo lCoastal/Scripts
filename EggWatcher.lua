@@ -400,7 +400,7 @@ local function eggLine(e)
     return table.concat(parts, " · ")
 end
 
-local function renderTemplate(eggs, total, includePing)
+local function renderTemplate(eggs, total, includePing, noEggs)
     local lines = {}
     local sorted = table.clone(eggs)
     table.sort(sorted, function(a, b) return a.money > b.money end)
@@ -414,7 +414,7 @@ local function renderTemplate(eggs, total, includePing)
         ping     = pingStr,
         count    = #eggs,
         total    = total,
-        eggs     = table.concat(lines, "\n"),
+        eggs     = noEggs and "" or table.concat(lines, "\n"),
         joinlink = ("https://www.roblox.com/games/start?placeId=%d&gameInstanceId=%s"):format(game.PlaceId, game.JobId),
         server   = game.JobId,
         player   = LP.Name,
@@ -425,7 +425,36 @@ local function renderTemplate(eggs, total, includePing)
         if map[k] ~= nil then return tostring(map[k]) end
         return "{" .. k .. "}"
     end)
+    if noEggs then -- drop lines left empty by the missing {eggs}
+        local kept = {}
+        for line in (out .. "\n"):gmatch("(.-)\n") do
+            if line:match("%S") then kept[#kept + 1] = line end
+        end
+        out = table.concat(kept, "\n")
+    end
     return (out:gsub("^%s+", ""))
+end
+
+-- one card per egg (Discord allows 10 embeds per message)
+local EMBED_TITLE  = "Egg spawned"
+local EMBED_FOOTER = "CoastalHub"
+local function eggCard(e, isTest)
+    local mut = #e.muts > 0 and table.concat(e.muts, ", ") or "None"
+    return {
+        title  = isTest and ("🧪 TEST — " .. EMBED_TITLE) or EMBED_TITLE,
+        color  = 0x57F287,
+        fields = {
+            { name = "Pet",       value = e.pet or e.name,                                              inline = true },
+            { name = "Rarity",    value = e.rarity,                                                     inline = true },
+            { name = "Scale",     value = string.format("x%.2f (%+.0f%%)", e.scale, e.boost),           inline = true },
+            { name = "Weight",    value = e.weight and string.format("%.2f kg", e.weight) or "?",       inline = true },
+            { name = "Income",    value = "$" .. short(e.money) .. "/s",                                inline = true },
+            { name = "Mutations", value = mut,                                                          inline = true },
+            { name = "Area",      value = e.area,                                                       inline = false },
+        },
+        footer    = { text = EMBED_FOOTER .. " | " .. LP.Name },
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+    }
 end
 
 local logFn = print
@@ -436,14 +465,23 @@ local function sendWebhook(eggs, total, isTest)
     local pingStr, pingId = pingString()
     local payload = { username = tostring(CFG.Username ~= "" and CFG.Username or "Egg Watcher") }
     if CFG.UseEmbed then
-        payload.content = pingStr ~= "" and pingStr or nil
-        payload.embeds = { {
-            title       = isTest and "🧪 TEST MESSAGE (not a real spawn)" or "🥚 New eggs spawned",
-            description = renderTemplate(eggs, total, false):sub(1, 4000),
-            color       = 0xF5C542,
-            footer      = { text = "Egg Watcher · " .. LP.Name },
-            timestamp   = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-        } }
+        local sorted = table.clone(eggs)
+        table.sort(sorted, function(x, y) return x.money > y.money end)
+        local cap = math.min(10, math.max(1, tonumber(CFG.MaxLines) or 10))
+        payload.embeds = {}
+        for i, e in ipairs(sorted) do
+            if i > cap then break end
+            payload.embeds[#payload.embeds + 1] = eggCard(e, isTest)
+        end
+        -- text above the cards: your template (without {eggs}, since the cards show them)
+        local text = renderTemplate(eggs, total, true, true)
+        if pingStr ~= "" and not tostring(CFG.Template):find("{ping}", 1, true) then
+            text = pingStr .. " " .. text
+        end
+        if #sorted > cap then text = text .. string.format("\n…and %d more not shown", #sorted - cap) end
+        if isTest then text = "🧪 **TEST MESSAGE (not a real spawn)**\n" .. text end
+        text = text:sub(1, 1990)
+        payload.content = text:match("%S") and text or nil
     else
         payload.content = ((isTest and "🧪 **TEST MESSAGE (not a real spawn)**\n" or "") .. renderTemplate(eggs, total, true)):sub(1, 1990)
     end
