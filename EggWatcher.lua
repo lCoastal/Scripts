@@ -435,7 +435,7 @@ local function renderTemplate(eggs, total, includePing, noEggs)
 end
 
 -- one card per egg (Discord allows 10 embeds per message)
-local EMBED_TITLE  = "Egg spawned"
+local EMBED_TITLE  = "Eggs"
 local EMBED_FOOTER = "CoastalHub"
 local function eggCard(e, isTest)
     local mut = #e.muts > 0 and table.concat(e.muts, ", ") or "None"
