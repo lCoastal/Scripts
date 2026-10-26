@@ -2,7 +2,8 @@
     Steal An Egg — Egg Watcher  (read-only)
     ------------------------------------------------------------
     * Reads the live field-egg snapshot (same call the game's own client makes)
-    * Filters: money/s, weight, size boost vs average, name, rarity
+    * Filters (add as many as you like; an egg is sent if it matches ANY of them):
+      min money/s, egg names, rarity
     * When a new batch of eggs spawns, posts matches to a Discord webhook
     * Editable webhook URL, ping target (user ID) and message template
     * Does NOT move you, steal, sell, teleport or touch anything in the game.
@@ -37,7 +38,6 @@ local F = {
     scale    = { "AssetScale", "Scale", "Size" },
     muts     = { "Mutations", "Mutation" },
     area     = { "Area", "AreaId", "Zone" },
-    weight   = { "WeightKg", "Weight" },                  -- on the egg record, if present
     -- on the Assets definition:
     d_rate   = { "EarningRate", "Earning", "MoneyPerSecond" },
     d_name   = { "DisplayName", "Name", "_id" },
@@ -57,21 +57,23 @@ end
 -- CONFIG
 --------------------------------------------------------------------
 local FILE = "EggWatcher_config.json"
+local function newFilter()
+    return {
+        MinMoney  = "",       -- money / second, accepts 10M, 2.5b, 1t ...  (blank = ignored)
+        Names     = {},       -- set of selected egg names  { ["Dragon Egg"] = true }  (empty = ignored)
+        Rarities  = {},       -- set of selected rarities   { ["Legendary"] = true }   (empty = ignored)
+        MatchMode = "ALL",    -- ALL = every set option must pass, ANY = at least one
+    }
+end
+
 local CFG = {
     Enabled       = true,
     Interval      = 3,            -- seconds between scans
     NotifyOnStart = false,        -- also notify for eggs already present at load
     MaxLines      = 15,           -- eggs listed per message
 
-    -- filters (leave blank = ignored). MatchMode ALL = every set filter must pass, ANY = at least one
-    MatchMode     = "ALL",
-    MinMoney      = "",           -- money / second, accepts 10M, 2.5b, 1t ...
-    MinWeight     = "",           -- kg
-    MinSize       = "",           -- % bigger than average (negative = smaller)
-    MaxSize       = "",           -- % bigger than average
-    Names         = {},           -- set of selected egg names  { ["Dragon Egg"] = true }  (empty = ignore)
-    Rarities      = {},           -- set of selected rarities   { ["Legendary"] = true }   (empty = ignore)
-    SizeBaseline  = "BASE",       -- BASE = Scale 1.0 is average | FIELD = average of same egg type in the server right now
+    -- a list of filters; an egg is sent if it passes ANY filter in the list
+    Filters       = { newFilter() },
 
     -- webhook
     Webhook       = "",
@@ -87,6 +89,7 @@ local function saveCfg()
     pcall(function() writefile(FILE, HttpService:JSONEncode(CFG)) end)
 end
 local function loadCfg()
+
     if not HAS_FS then return end
     pcall(function()
         if isfile(FILE) then
@@ -94,10 +97,33 @@ local function loadCfg()
             for k, v in pairs(data) do
                 if CFG[k] ~= nil and type(v) == type(CFG[k]) then CFG[k] = v end
             end
+            -- migrate the old single-filter config into Filter 1
+            if type(data.Filters) ~= "table" and (data.MinMoney ~= nil or data.Names ~= nil or data.Rarities ~= nil) then
+                CFG.Filters = { { MinMoney = data.MinMoney, Names = data.Names, Rarities = data.Rarities, MatchMode = data.MatchMode } }
+            end
         end
     end)
 end
 loadCfg()
+
+-- make sure every filter has all its fields (handles hand-edited / old config files)
+do
+    local list = {}
+    if type(CFG.Filters) == "table" then
+        for _, f in ipairs(CFG.Filters) do
+            if type(f) == "table" then
+                local n = newFilter()
+                if type(f.MinMoney) == "string" then n.MinMoney = f.MinMoney end
+                if type(f.Names) == "table" then n.Names = f.Names end
+                if type(f.Rarities) == "table" then n.Rarities = f.Rarities end
+                if f.MatchMode == "ANY" then n.MatchMode = "ANY" end
+                list[#list + 1] = n
+            end
+        end
+    end
+    if #list == 0 then list[1] = newFilter() end
+    CFG.Filters = list
+end
 
 --------------------------------------------------------------------
 -- HELPERS
@@ -289,14 +315,6 @@ local function buildEggs(snapshot)
     local raw = {}
     collect(snapshot, raw, nil, 0)
 
-    -- per-category average scale (for SizeBaseline = FIELD)
-    local sum, cnt = {}, {}
-    for _, r in ipairs(raw) do
-        local cat = tostring(pick(r.rec, F.category))
-        local sc = tonumber(pick(r.rec, F.scale)) or 1
-        sum[cat], cnt[cat] = (sum[cat] or 0) + sc, (cnt[cat] or 0) + 1
-    end
-
     local eggs = {}
     for _, r in ipairs(raw) do
         local rec = r.rec
@@ -309,15 +327,7 @@ local function buildEggs(snapshot)
         local muts  = pick(rec, F.muts)
         local money = rate * (scale ^ EXP) * mutationMulti(muts)
 
-        local baseW = tonumber(pick(rec, F.weight))
-        if not baseW and def then
-            local egg = def.Egg or def
-            baseW = tonumber(pick(egg, F.weight))
-            if baseW then baseW = baseW * scale end -- ASSUMPTION: weight scales linearly with size
-        end
-
-        local avg = (CFG.SizeBaseline == "FIELD") and (sum[cat] / cnt[cat]) or 1
-        local boost = (scale / (avg > 0 and avg or 1) - 1) * 100
+        local boost = (scale - 1) * 100 -- % bigger / smaller than the base size (x1.0)
 
         local rarity = rarityOf(def)
         addOption("names", eggNameOf(def, cat))
@@ -332,7 +342,6 @@ local function buildEggs(snapshot)
             area   = tostring(pick(rec, F.area) or r.area or "?"),
             scale  = scale,
             money  = money,
-            weight = baseW,   -- may be nil
             boost  = boost,
             muts   = mutationNames(muts),
         }
@@ -343,34 +352,34 @@ end
 --------------------------------------------------------------------
 -- FILTERS
 --------------------------------------------------------------------
-local function passes(e)
+local function filterPasses(f, e)
     local results = {}
 
-    local minM = parseAmount(CFG.MinMoney)
+    local minM = parseAmount(f.MinMoney)
     if minM then results[#results + 1] = e.money >= minM end
 
-    local minW = parseAmount(CFG.MinWeight)
-    if minW then results[#results + 1] = (e.weight or 0) >= minW end
-
-    local minS = parseAmount(CFG.MinSize)
-    if minS then results[#results + 1] = e.boost >= minS end
-    local maxS = parseAmount(CFG.MaxSize)
-    if maxS then results[#results + 1] = e.boost <= maxS end
-
-    if next(CFG.Names) ~= nil then
-        results[#results + 1] = CFG.Names[e.name] == true or CFG.Names[e.pet] == true or CFG.Names[e.cat] == true
+    if next(f.Names) ~= nil then
+        results[#results + 1] = f.Names[e.name] == true or f.Names[e.pet] == true or f.Names[e.cat] == true
     end
-    if next(CFG.Rarities) ~= nil then
-        results[#results + 1] = CFG.Rarities[e.rarity] == true
+    if next(f.Rarities) ~= nil then
+        results[#results + 1] = f.Rarities[e.rarity] == true
     end
 
-    if #results == 0 then return true end -- no filters set = everything matches
-    if CFG.MatchMode == "ANY" then
+    if #results == 0 then return true end -- nothing set in this filter = it accepts every egg
+    if f.MatchMode == "ANY" then
         for _, r in ipairs(results) do if r then return true end end
         return false
     end
     for _, r in ipairs(results) do if not r then return false end end
     return true
+end
+
+-- an egg matches if ANY filter accepts it
+local function passes(e)
+    for _, f in ipairs(CFG.Filters) do
+        if filterPasses(f, e) then return true end
+    end
+    return false
 end
 
 --------------------------------------------------------------------
@@ -570,22 +579,23 @@ local function label(page, text)
         Font = Enum.Font.Gotham, TextSize = 11, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left }, page)
 end
 
-local function field(page, titleText, key, placeholder, multiline, onChange)
+local function field(page, titleText, key, placeholder, multiline, onChange, store)
+    local T = store or CFG
     local row = new("Frame", { Size = UDim2.new(1, -6, 0, multiline and 110 or 48), BackgroundTransparency = 1 }, page)
     new("TextLabel", { Size = UDim2.new(1, 0, 0, 16), BackgroundTransparency = 1, Text = titleText, TextColor3 = C.text, Font = Enum.Font.GothamMedium,
         TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left }, row)
     local box = new("TextBox", { Position = UDim2.new(0, 0, 0, 18), Size = UDim2.new(1, 0, 1, -20), BackgroundColor3 = C.box, BorderSizePixel = 0,
-        Text = tostring(CFG[key] or ""), PlaceholderText = placeholder or "", PlaceholderColor3 = C.dim, TextColor3 = C.text, Font = Enum.Font.Code, TextSize = 12,
+        Text = tostring(T[key] or ""), PlaceholderText = placeholder or "", PlaceholderColor3 = C.dim, TextColor3 = C.text, Font = Enum.Font.Code, TextSize = 12,
         ClearTextOnFocus = false, MultiLine = multiline or false, TextWrapped = multiline or false, TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = multiline and Enum.TextYAlignment.Top or Enum.TextYAlignment.Center }, row)
     new("UICorner", { CornerRadius = UDim.new(0, 5) }, box)
     new("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingTop = UDim.new(0, 4) }, box)
     box.FocusLost:Connect(function()
-        if type(CFG[key]) == "number" then
+        if type(T[key]) == "number" then
             local n = tonumber(box.Text)
-            if n then CFG[key] = n else box.Text = tostring(CFG[key]) end
+            if n then T[key] = n else box.Text = tostring(T[key]) end
         else
-            CFG[key] = box.Text
+            T[key] = box.Text
         end
         if onChange then onChange() end
         saveCfg()
@@ -609,12 +619,13 @@ local function toggle(page, text, key)
     return b
 end
 
-local function cycle(page, text, key, options)
+local function cycle(page, text, key, options, store)
+    local T = store or CFG
     local b
-    local function refresh() b.Text = text .. ":  " .. tostring(CFG[key]) end
+    local function refresh() b.Text = text .. ":  " .. tostring(T[key]) end
     b = button(page, text, function()
-        local idx = table.find(options, CFG[key]) or 0
-        CFG[key] = options[(idx % #options) + 1]
+        local idx = table.find(options, T[key]) or 0
+        T[key] = options[(idx % #options) + 1]
         refresh(); saveCfg()
     end)
     refresh()
@@ -647,15 +658,21 @@ tabBtns["Log"].MouseButton1Click:Connect(function() showPage("Log") end)
 
 -- FILTERS PAGE
 toggle(pFilters, "Watching", "Enabled")
-cycle(pFilters, "Match mode (ALL filters / ANY filter)", "MatchMode", { "ALL", "ANY" })
-label(pFilters, "Leave a filter blank to ignore it. Money accepts suffixes: 500k, 10M, 2.5b, 1t.")
-field(pFilters, "Min money / second", "MinMoney", "e.g. 10M")
-field(pFilters, "Min weight (kg)", "MinWeight", "e.g. 2.5")
-field(pFilters, "Min size boost (% vs average)", "MinSize", "e.g. 30   (negative = smaller)")
-field(pFilters, "Max size boost (% vs average)", "MaxSize", "e.g. -10 to find tiny ones")
-cycle(pFilters, "Size baseline (BASE = scale 1.0 / FIELD = server avg)", "SizeBaseline", { "BASE", "FIELD" })
+label(pFilters, "An egg is sent if it matches ANY of the filters below. Inside one filter, blank / empty options are ignored. Money accepts 500k, 10M, 2.5b, 1t.")
+local filterBox = new("Frame", { Size = UDim2.new(1, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1 }, pFilters)
+new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, filterBox)
+
+local MAX_FILTERS = 10
+local buildFilters
+button(pFilters, "+ Add filter", function()
+    if #CFG.Filters >= MAX_FILTERS then logFn("max " .. MAX_FILTERS .. " filters") return end
+    CFG.Filters[#CFG.Filters + 1] = newFilter()
+    saveCfg(); buildFilters()
+end, C.good)
+
 -- click to expand, click an entry to select it, click again to unselect it
-local function multiSelect(page, titleText, key, kind, emptyText)
+local function multiSelect(page, titleText, key, kind, emptyText, store)
+    local T = store or CFG
     local holder = new("Frame", { Size = UDim2.new(1, -6, 0, 28), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1 }, page)
     new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, holder)
 
@@ -681,7 +698,7 @@ local function multiSelect(page, titleText, key, kind, emptyText)
     new("UIListLayout", { Padding = UDim.new(0, 2) }, list)
 
     local function refreshHead()
-        local n = countKeys(CFG[key])
+        local n = countKeys(T[key])
         head.Text = string.format("%s:  %s   %s", titleText, n == 0 and emptyText or (n .. " selected"), panel.Visible and "▲" or "▼")
         head.BackgroundColor3 = n > 0 and C.accent or C.box
         head.TextColor3 = n > 0 and C.bg or C.text
@@ -693,11 +710,11 @@ local function multiSelect(page, titleText, key, kind, emptyText)
         end
         local q = search.Text:lower()
         local shown = 0
-        for _, opt in ipairs(sortedOptions(kind, CFG[key])) do
+        for _, opt in ipairs(sortedOptions(kind, T[key])) do
             if q == "" or opt:lower():find(q, 1, true) then
                 shown += 1
                 local function style(row)
-                    local on = CFG[key][opt] == true
+                    local on = T[key][opt] == true
                     row.Text = (on and "☑  " or "☐  ") .. opt
                     row.BackgroundColor3 = on and C.good or C.box
                 end
@@ -706,7 +723,7 @@ local function multiSelect(page, titleText, key, kind, emptyText)
                 new("UIPadding", { PaddingLeft = UDim.new(0, 6) }, row)
                 style(row)
                 row.MouseButton1Click:Connect(function()
-                    if CFG[key][opt] then CFG[key][opt] = nil else CFG[key][opt] = true end
+                    if T[key][opt] then T[key][opt] = nil else T[key][opt] = true end
                     style(row); refreshHead(); saveCfg()
                 end)
             end
@@ -724,18 +741,47 @@ local function multiSelect(page, titleText, key, kind, emptyText)
     end)
     search:GetPropertyChangedSignal("Text"):Connect(rebuild)
     clear.MouseButton1Click:Connect(function()
-        for k in pairs(CFG[key]) do CFG[key][k] = nil end
+        for k in pairs(T[key]) do T[key][k] = nil end
         saveCfg(); rebuild(); refreshHead()
     end)
     refreshHead()
     return function() if panel.Visible then rebuild() end refreshHead() end
 end
 
-local refreshNames  = multiSelect(pFilters, "Egg names", "Names", "names", "any")
-local refreshRarity = multiSelect(pFilters, "Rarity", "Rarities", "rarities", "any")
+local refreshers = {}
+buildFilters = function()
+    for _, ch in ipairs(filterBox:GetChildren()) do
+        if not ch:IsA("UIListLayout") then ch:Destroy() end
+    end
+    refreshers = {}
+    for i, f in ipairs(CFG.Filters) do
+        local card = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel, BorderSizePixel = 0, LayoutOrder = i }, filterBox)
+        new("UICorner", { CornerRadius = UDim.new(0, 6) }, card)
+        new("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) }, card)
+        new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, card)
+
+        local head = new("Frame", { Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = -1 }, card)
+        new("TextLabel", { Size = UDim2.new(1, -80, 1, 0), BackgroundTransparency = 1, Text = "Filter " .. i, TextColor3 = C.accent,
+            Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left }, head)
+        local rm = new("TextButton", { Position = UDim2.new(1, -74, 0, 0), Size = UDim2.fromOffset(74, 24), BackgroundColor3 = C.bad,
+            Text = (#CFG.Filters > 1) and "Remove" or "Reset", TextColor3 = C.text, Font = Enum.Font.GothamMedium, TextSize = 11, BorderSizePixel = 0 }, head)
+        new("UICorner", { CornerRadius = UDim.new(0, 4) }, rm)
+        rm.MouseButton1Click:Connect(function()
+            if #CFG.Filters > 1 then table.remove(CFG.Filters, i) else CFG.Filters[1] = newFilter() end
+            saveCfg(); buildFilters()
+        end)
+
+        field(card, "Min money / second", "MinMoney", "e.g. 10M", false, nil, f)
+        refreshers[#refreshers + 1] = multiSelect(card, "Egg names", "Names", "names", "any", f)
+        refreshers[#refreshers + 1] = multiSelect(card, "Rarity", "Rarities", "rarities", "any", f)
+        cycle(card, "Match mode (ALL set options / ANY)", "MatchMode", { "ALL", "ANY" }, f)
+    end
+end
+buildFilters()
+
 button(pFilters, "Re-scan game data for egg names / rarities", function()
     local eggs, total = discoverOptions()
-    refreshNames(); refreshRarity()
+    for _, r in ipairs(refreshers) do r() end
     logFn(("egg list: %d names, %d rarities (%d egg defs / %d assets in game data)"):format(
         countKeys(OPTIONS.names), countKeys(OPTIONS.rarities), eggs, total))
 end, C.panel)
@@ -845,7 +891,7 @@ button(pHook, "Send test message", function()
     for i = 1, math.min(3, #lastEggs) do sample[i] = lastEggs[i] end
     if #sample == 0 then
         sample[1] = { uid = "test", cat = "TestEgg", name = "Test Egg", rarity = "Legendary", area = "Forest", scale = 1.3, money = 1.5e6,
-            weight = 2.4, boost = 30, muts = {} }
+            boost = 30, muts = {} }
     end
     local ok, err = sendWebhook(sample, lastTotal, true)
     logFn(ok and "test message sent" or ("test FAILED: " .. tostring(err)))
@@ -854,7 +900,7 @@ end, C.panel)
 
 button(pMsg, "Send test with this template", function()
     local sample = { { uid = "test", cat = "TestEgg", name = "Test Egg", rarity = "Legendary", area = "Forest", scale = 1.3, money = 1.5e6,
-        weight = 2.4, boost = 30, muts = { "Golden" } } }
+        boost = 30, muts = { "Golden" } } }
     local ok, err = sendWebhook(sample, lastTotal, true)
     logFn(ok and "test message sent" or ("test FAILED: " .. tostring(err)))
     showPage("Log")
